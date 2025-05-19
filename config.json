@@ -1,0 +1,9 @@
+{
+  "qbit_host": "http://127.0.0.1:8080/",
+  "jackett_host": "http://127.0.0.1:9117",
+  "jackett_api_key": "ТВОЙ_АПИ_КЛЮЧ",
+  "torrent_category": "Series",
+  "telegram_enabled": true,
+  "telegram_token": "ТВОЙ_ТОКЕН_БОТА",
+  "telegram_chat_id": "ТВОЙ_CHAT_ID"  
+}

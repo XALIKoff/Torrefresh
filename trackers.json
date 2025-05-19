@@ -1,0 +1,41 @@
+{
+  "rutracker": {
+    "enabled": true,
+    "jackett_id": "rutracker",
+    "match": {
+      "method": "exact_url"
+    },
+    "require_comment": true,
+    "skip_if_no_http": true
+  },
+  "rudub": {
+    "enabled": true,
+    "jackett_id": "rudub",
+    "match": {
+      "method": "compare_id",
+      "id_regex": "id=(\\d+)"
+    },
+    "require_comment": true,
+    "skip_if_no_http": true
+  },
+  "kinozal": {
+    "enabled": true,
+    "jackett_id": "kinozal",
+    "match": {
+       "method": "exact_url"
+    },
+    "require_comment": true,
+    "skip_if_no_http": true
+  },
+  "lostfilm": {
+    "enabled": true,
+    "jackett_id": "lostfilm",
+    "match": {
+      "method": "next_episode",
+      "episode_regex": "(?P<series>.+?)\\.S(?P<season>\\d{1,2})E(?P<episode>\\d{1,2})(?:\\.|\\b).*?(?P<quality>\\d{3,4}p)?",
+      "quality_levels": ["1080p", "720p"]
+    },
+    "require_comment": false,
+    "skip_if_no_http": false
+  }
+}
