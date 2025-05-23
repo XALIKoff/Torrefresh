@@ -4,3 +4,4 @@ python-dateutil
 rapidfuzz
 PyQt5
 pywinstyles
+tqdm
