@@ -28,13 +28,30 @@ Supports URL and ID-based matching, episode tracking, quality preservation, and 
 
 ### 👉 Python
 
+1. **Clone the project**
 ```bash
 git clone https://github.com/XALIKoff/Torrefresh.git
 cd Torrefresh
-pip install -r requirements.txt
-python main_gui.py
 ```
 
+2. **Create a virtual environment and activate it**
+```bash
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+```
+
+3. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+4. **Run the GUI**
+```bash
+python main_gui.py
+```
 ---
 
 ## ⚙ Configuration
@@ -193,14 +210,30 @@ Pull requests and issues are welcome!
 4. Запустите `Torrefresh.exe`
 
 ### 👉 Для Python
+1. **Клонируйте проект**
+    ```bash
+    git clone https://github.com/XALIKoff/Torrefresh.git
+    cd Torrefresh
+    ```
 
-```bash
-git clone https://github.com/XALIKoff/Torrefresh.git
-cd Torrefresh
-pip install -r requirements.txt
-python main_gui.py
-```
+2. **Создайте виртуальное окружение и активируйте его**
+    ```bash
+    python -m venv venv
+    # Windows:
+    venv\Scripts\activate
+    # Linux/macOS:
+    source venv/bin/activate
+    ```
 
+3. **Установите зависимости**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4. **Запустите GUI**
+    ```bash
+    python main_gui.py
+    ```
 ---
 
 ## ⚙ Конфигурация
