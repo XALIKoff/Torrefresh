@@ -25,7 +25,7 @@ class TorrentUpdaterGUI(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowIcon(QIcon("icon.ico"))
-        self.setWindowTitle("Torrefresh")
+        self.setWindowTitle("Torrent Auto-Updater")
         self.setGeometry(100, 100, 600, 400)
 
         self.setStyleSheet("""
@@ -123,7 +123,7 @@ class TorrentUpdaterGUI(QWidget):
         self.hide()
         self.tray_icon.show()
         self.tray_icon.showMessage(
-            "Torrefresh",
+            "Torrent Auto-Updater",
             "Свернуто в трей. Нажмите на иконку для открытия.",
             QSystemTrayIcon.Information,
             3000

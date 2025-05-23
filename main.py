@@ -4,6 +4,7 @@ import requests
 from qbittorrentapi import Client
 from datetime import datetime, timezone
 from dateutil import parser
+from fuzzy_search import search as fuzzy_search_titles
 
 # ==== Загрузка конфигов ====
 with open("config.json", encoding="utf-8") as f:
@@ -127,6 +128,65 @@ def download_and_add_torrent(qb, torrent_url, old_torrent_hash=None, preserve_fi
             print_fn(f"  ❌ Ошибка удаления старого торрента: {e}")
     return added
 
+def search_and_process_results(results, method, cfg, torrents, current_info, pattern, name, comment, size_qbit, hash_qbit, added_on, category, qb, print_fn):
+    found_match = False
+    quality_levels = cfg["match"].get("quality_levels", [])
+
+    for r in results:
+        title = r.get('Title')
+        detail_link = r.get('Details')
+        torrent_link = r.get('Link')
+        pub_date = r.get('PublishDate')
+        size_new = r.get('Size')
+        if not detail_link or not pub_date or not size_new:
+            continue
+
+        if method == "next_episode":
+            candidate_info = extract_episode_info(title, pattern)
+            if current_info and candidate_info:
+                if (current_info["series"] == candidate_info["series"] and
+                    int(candidate_info["season"]) == int(current_info["season"]) and
+                    int(candidate_info["episode"]) == int(current_info["episode"]) + 1):
+                    for q in quality_levels:
+                        if q in name and q not in title:
+                            break
+                    else:
+                        if torrent_already_exists(torrents, candidate_info, quality_levels, pattern):
+                            print_fn(f"  ⚠ Уже добавлен S{candidate_info['season']}E{candidate_info['episode']}\n")
+                            continue
+                        print_fn(f'  🎯 Найдена следующая серия: {title}')
+                        print_fn("")
+                        download_and_add_torrent(qb, torrent_link, preserve_files=True, category=category, print_fn=print_fn)
+                        send_telegram_message(f"📺 Новая серия: {title}")
+                        found_match = True
+                        break
+
+        elif method == "exact_url":
+            if comment.strip() == detail_link.strip():
+                found_match = True
+                print_fn(f'  ✅ Совпадение по ссылке')
+        elif method == "compare_id":
+            id_regex = cfg["match"].get("id_regex")
+            id_comment = extract_id(comment, id_regex)
+            id_detail = extract_id(detail_link, id_regex)
+            if id_comment and id_detail and id_comment == id_detail:
+                found_match = True
+                print_fn(f'  🔁 Совпадение по ID: {id_comment}')
+
+        if found_match and method in ("exact_url", "compare_id"):
+            dt_added = convert_to_datetime(added_on)
+            dt_publish = convert_to_datetime(pub_date)
+            print_fn(f'    📅 Добавлен: {dt_added}, опубликован: {dt_publish}')
+            if dt_publish > dt_added and size_new > size_qbit + 10 * 1024 * 1024:
+                print_fn(f'  🔄 Обновление: +{(size_new - size_qbit)/(1024*1024):.1f} MB')
+                download_and_add_torrent(qb, torrent_link, old_torrent_hash=hash_qbit, preserve_files=False, category=category, print_fn=print_fn)
+                send_telegram_message(f"📦 Обновлён торрент: {name}")
+            else:
+                print_fn(f'  🔁 Обновлений нет\n')
+            break
+
+    return found_match
+
 # ==== Основная функция ====
 def run_update_logic(print_fn=print):
     now = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
@@ -180,84 +240,48 @@ def run_update_logic(print_fn=print):
             print_fn(f'  ⚠ Ошибка запроса к {indexer}: {e}')
             continue
 
-        found_match = False
+        pattern = cfg["match"].get("episode_regex")
+        current_info = extract_episode_info(name, pattern) if pattern else None
 
-        if method == "next_episode":
-            pattern = cfg["match"]["episode_regex"]
-            quality_levels = cfg["match"].get("quality_levels", [])
-            current_info = extract_episode_info(name, pattern)
+        found_match = search_and_process_results(results, method, cfg, torrents, current_info,
+                                                 pattern, name, comment, size_qbit,
+                                                 hash_qbit, added_on, category, qb, print_fn)
 
-            for r in results:
-                title = r.get('Title')
-                detail_link = r.get('Details')
-                torrent_link = r.get('Link')
-                pub_date = r.get('PublishDate')
-                size_new = r.get('Size')
-                if not detail_link or not pub_date or not size_new:
+        if not found_match and method in ("compare_id", "exact_url", "next_episode"):
+            # Повторный fuzzy-поиск
+            print_fn("  🔎 Повторный fuzzy-поиск...")
+            fuzzy_name = normalize_name(name)
+
+            try:
+                from fuzzy_search import search as fuzzy_search_titles
+                from fuzzy_search import show_data
+                matches = fuzzy_search_titles(fuzzy_name)
+            except Exception as e:
+                print_fn(f"  ⚠ Ошибка fuzzy-поиска: {e}")
+                continue
+
+            if matches:
+                best_match = matches[0]
+                tconst = best_match[3]
+                new_query = show_data.get(tconst, {}).get("main", best_match[2])
+                print_fn(f'  🔁 Пробуем альтернативный запрос: "{new_query}"')
+
+                params['Query'] = new_query
+                try:
+                    response = requests.get(url, params=params)
+                    results = response.json().get('Results', [])
+                except Exception as e:
+                    print_fn(f'  ⚠ Ошибка повторного запроса: {e}')
                     continue
 
-                candidate_info = extract_episode_info(title, pattern)
+                found_match = search_and_process_results(
+                    results, method, cfg, torrents, current_info,
+                    pattern, name, comment, size_qbit,
+                    hash_qbit, added_on, category, qb, print_fn
+                )
 
-                if current_info and candidate_info:
-                    if (current_info["series"] == candidate_info["series"] and
-                        int(candidate_info["season"]) == int(current_info["season"]) and
-                        int(candidate_info["episode"]) == int(current_info["episode"]) + 1):
-                        for q in quality_levels:
-                            if q in name and q not in title:
-                                break
-                        else:
-                            if torrent_already_exists(torrents, candidate_info, quality_levels, pattern):
-                                print_fn(f"  ⚠ Уже добавлен S{candidate_info['season']}E{candidate_info['episode']}")
-                                print_fn("")  # пустая строка для отделения логов разных торрентов
-                                continue
-
-                            found_match = True
-                            print_fn(f'  🎯 Найдена следующая серия: {title}')
-                            print_fn("")  # пустая строка для отделения логов разных торрентов
-                            download_and_add_torrent(qb, torrent_link, preserve_files=True, category=category, print_fn=print_fn)
-                            send_telegram_message(f"📺 Новая серия: {title}")
-                            break
-
-            if not found_match:
-                print_fn(f'  ℹ Следующая серия не найдена среди {len(results)} результатов')
-                print_fn("")  # пустая строка для отделения логов разных торрентов
+            else:
+                print_fn("  ❌ Альтернативное название не найдено")
 
 
-        else:
-            for r in results:
-                title = r.get('Title')
-                detail_link = r.get('Details')
-                torrent_link = r.get('Link')
-                pub_date = r.get('PublishDate')
-                size_new = r.get('Size')
-                if not detail_link or not pub_date or not size_new:
-                    continue
 
-                if method == "exact_url":
-                    if comment.strip() == detail_link.strip():
-                        found_match = True
-                        print_fn(f'  ✅ Совпадение по ссылке')
-                elif method == "compare_id":
-                    id_regex = cfg["match"].get("id_regex")
-                    id_comment = extract_id(comment, id_regex)
-                    id_detail = extract_id(detail_link, id_regex)
-                    if id_comment and id_detail and id_comment == id_detail:
-                        found_match = True
-                        print_fn(f'  🔁 Совпадение по ID: {id_comment}')
-
-                if found_match:
-                    dt_added = convert_to_datetime(added_on)
-                    dt_publish = convert_to_datetime(pub_date)
-                    print_fn(f'    📅 Добавлен: {dt_added}, опубликован: {dt_publish}')
-                    if dt_publish > dt_added and size_new > size_qbit + 10 * 1024 * 1024:
-                        print_fn(f'  🔄 Обновление: +{(size_new - size_qbit)/(1024*1024):.1f} MB')
-                        download_and_add_torrent(qb, torrent_link, old_torrent_hash=hash_qbit, preserve_files=False, category=category, print_fn=print_fn)
-                        send_telegram_message(f"📦 Обновлён торрент: {name}")
-                    else:
-                        print_fn(f'  🔁 Обновлений нет')
-                        print_fn("")  # пустая строка для отделения логов разных торрентов
-                    break
-
-            if not found_match:
-                print_fn(f'  ❌ Совпадений не найдено\n')
-                print_fn("")  # пустая строка для отделения логов разных торрентов
