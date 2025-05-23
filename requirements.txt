@@ -1,0 +1,6 @@
+requests
+qbittorrent-api
+python-dateutil
+rapidfuzz
+PyQt5
+pywinstyles
